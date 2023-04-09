@@ -1,3 +1,4 @@
+{-# LANGUAGE TupleSections #-}
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE InstanceSigs #-}
@@ -13,6 +14,7 @@ import Course.Functor
 import Course.Applicative
 import Course.Monad
 import qualified Data.Set as S
+import qualified Data.Set
 
 -- $setup
 -- >>> import Test.QuickCheck.Function
@@ -44,8 +46,7 @@ exec ::
   State s a
   -> s
   -> s
-exec =
-  error "todo: Course.State#exec"
+exec st s = snd $ runState st s
 
 -- | Run the `State` seeded with `s` and retrieve the resulting value.
 --
@@ -54,8 +55,7 @@ eval ::
   State s a
   -> s
   -> a
-eval =
-  error "todo: Course.State#eval"
+eval st s = fst $ runState st s
 
 -- | A `State` where the state also distributes into the produced value.
 --
@@ -63,8 +63,7 @@ eval =
 -- (0,0)
 get ::
   State s s
-get =
-  error "todo: Course.State#get"
+get = State (\s -> (s, s))
 
 -- | A `State` where the resulting state is seeded with the given value.
 --
@@ -73,8 +72,7 @@ get =
 put ::
   s
   -> State s ()
-put =
-  error "todo: Course.State#put"
+put s = State (const ((), s))
 
 -- | Implement the `Functor` instance for `State s`.
 --
@@ -85,8 +83,8 @@ instance Functor (State s) where
     (a -> b)
     -> State s a
     -> State s b
-  (<$>) =
-    error "todo: Course.State#(<$>)"
+  (<$>) f s = State $ \a -> let (a1, s1)= runState s a
+                            in (f a1, s1)
 
 -- | Implement the `Applicative` instance for `State s`.
 --
@@ -102,14 +100,17 @@ instance Applicative (State s) where
   pure ::
     a
     -> State s a
-  pure =
-    error "todo: Course.State pure#instance (State s)"
+  pure a = State (a,)
+
   (<*>) ::
     State s (a -> b)
     -> State s a
     -> State s b
-  (<*>) =
-    error "todo: Course.State (<*>)#instance (State s)"
+  (<*>) sf st =
+    let newS = \s -> let (f, s1) = runState sf s
+                         (a, s2) = runState st s1
+                         in (f a, s2)
+    in State newS
 
 -- | Implement the `Monad` instance for `State s`.
 --
@@ -126,8 +127,11 @@ instance Monad (State s) where
     (a -> State s b)
     -> State s a
     -> State s b
-  (=<<) =
-    error "todo: Course.State (=<<)#instance (State s)"
+  (=<<) f st =
+    let newS = \s -> let (a, s1) = runState st s
+                         (b, s2) = runState (f a) s1
+                      in (b, s2)
+    in State newS
 
 -- | Find the first element in a `List` that satisfies a given predicate.
 -- It is possible that no element is found, hence an `Optional` result.
@@ -148,8 +152,9 @@ findM ::
   (a -> f Bool)
   -> List a
   -> f (Optional a)
-findM =
-  error "todo: Course.State#findM"
+findM _ Nil = pure Empty
+findM pred (x:.xs) =
+  pred x >>= \r -> if r then pure (Full x) else findM pred xs
 
 -- | Find the first element in a `List` that repeats.
 -- It is possible that no element repeats, hence an `Optional` result.
@@ -165,8 +170,13 @@ firstRepeat ::
   Ord a =>
   List a
   -> Optional a
-firstRepeat =
-  error "todo: Course.State#firstRepeat"
+firstRepeat l =
+  let st x = State (
+                \s -> if  Data.Set.member x s then (True, Data.Set.insert x s)
+                      else (False, Data.Set.insert x s))
+      r = findM st l
+  in
+    eval r Data.Set.empty
 
 -- | Remove all duplicate elements in a `List`.
 -- /Tip:/ Use `filtering` and `State` with a @Data.Set#Set@.

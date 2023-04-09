@@ -102,15 +102,14 @@ printFiles files =
 getFile ::
   FilePath
   -> IO (FilePath, Chars)
-getFile p = lift1 (p,) (readFile p)
+getFile p = (p,) <$> (readFile p)
 
 -- Given a list of file names, return list of (file name and file contents).
 -- Use @getFile@.
 getFiles ::
   List FilePath
   -> IO (List (FilePath, Chars))
-getFiles files =
-  sequence (map getFile files)
+getFiles = sequence . (map getFile)
 
 -- Given a file name, read it and for each line in that file, read and print contents of each.
 -- Use @getFiles@, @lines@, and @printFiles@.
@@ -119,14 +118,14 @@ run ::
   -> IO ()
 run p =
   readFile p
-    >>= \c -> getFiles (lines c)
+    >>= getFiles . lines
     >>= printFiles
 
 -- /Tip:/ use @getArgs@ and @run@
 main ::
   IO ()
 main =
-  void $ getArgs >>= \r -> sequence (map run r)
+  void $ getArgs >>= sequence . map run
 
 ----
 
