@@ -172,7 +172,7 @@ firstRepeat ::
   -> Optional a
 firstRepeat l =
   let st x = State (
-                \s -> if  Data.Set.member x s then (True, Data.Set.insert x s)
+                \s -> if Data.Set.member x s then (True, s)
                       else (False, Data.Set.insert x s))
       r = findM st l
   in
@@ -188,8 +188,11 @@ distinct ::
   Ord a =>
   List a
   -> List a
-distinct =
-  error "todo: Course.State#distinct"
+distinct l =
+  let st x = State (\s -> if Data.Set.member x s then (False, s)
+                          else (True, Data.Set.insert x s))
+      r = filtering st l
+  in eval r Data.Set.empty
 
 -- | A happy number is a positive integer, where the sum of the square of its digits eventually reaches 1 after repetition.
 -- In contrast, a sad number (not a happy number) is where the sum of the square of its digits never reaches 1
