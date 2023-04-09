@@ -15,6 +15,7 @@ import Course.Applicative
 import Course.Monad
 import qualified Data.Set as S
 import qualified Data.Set
+import qualified Data.Char
 
 -- $setup
 -- >>> import Test.QuickCheck.Function
@@ -218,5 +219,12 @@ distinct l =
 isHappy ::
   Integer
   -> Bool
-isHappy =
-  error "todo: Course.State#isHappy"
+isHappy n =
+  let
+    digits :: Int -> List Int
+    digits = map Data.Char.digitToInt . show'
+    square = map (join (*))
+    sumSquares = sum.square
+    numbers v = produce (sumSquares.digits) v
+  in
+    contains 1 (firstRepeat (numbers $ fromInteger n))
