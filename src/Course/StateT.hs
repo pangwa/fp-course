@@ -16,6 +16,7 @@ import Course.Monad
 import Course.State
 import qualified Data.Set as S
 import qualified Prelude as P
+import qualified Data.Set
 
 -- $setup
 -- >>> import Test.QuickCheck
@@ -45,8 +46,8 @@ instance Functor k => Functor (StateT s k) where
     (a -> b)
     -> StateT s k a
     -> StateT s k b
-  (<$>) =
-    error "todo: Course.StateT (<$>)#instance (StateT s k)"
+  (<$>) f st = StateT $ \s -> let kas = runStateT st s
+                              in (\(a, st2) -> (f a, st2)) <$> kas
 
 -- | Implement the `Applicative` instance for @StateT s k@ given a @Monad k@.
 --
@@ -68,14 +69,14 @@ instance Monad k => Applicative (StateT s k) where
   pure ::
     a
     -> StateT s k a
-  pure =
-    error "todo: Course.StateT pure#instance (StateT s k)"
+  pure a = StateT $ \s -> pure (a, s)
   (<*>) ::
     StateT s k (a -> b)
     -> StateT s k a
     -> StateT s k b
-  (<*>) =
-    error "todo: Course.StateT (<*>)#instance (StateT s k)"
+  (<*>) sf st =
+    let newS = \s -> runStateT sf s >>= \(f, s1) -> runStateT (f <$> st) s1
+    in StateT newS
 
 -- | Implement the `Monad` instance for @StateT s k@ given a @Monad k@.
 -- Make sure the state value is passed through in `bind`.
@@ -90,8 +91,8 @@ instance Monad k => Monad (StateT s k) where
     (a -> StateT s k b)
     -> StateT s k a
     -> StateT s k b
-  (=<<) =
-    error "todo: Course.StateT (=<<)#instance (StateT s k)"
+  (=<<) f st =
+    StateT $ \s -> runStateT st s >>= \(a, sf) -> runStateT (f a) sf
 
 -- | A `State'` is `StateT` specialised to the `ExactlyOne` functor.
 type State' s a =
@@ -104,8 +105,7 @@ type State' s a =
 state' ::
   (s -> (a, s))
   -> State' s a
-state' =
-  error "todo: Course.StateT#state'"
+state' f = StateT $ \s -> let (a, s') = f s in pure (a, s')
 
 -- | Provide an unwrapper for `State'` values.
 --
@@ -115,8 +115,8 @@ runState' ::
   State' s a
   -> s
   -> (a, s)
-runState' =
-  error "todo: Course.StateT#runState'"
+runState' st s =
+  runExactlyOne $ runStateT st s
 
 -- | Run the `StateT` seeded with `s` and retrieve the resulting state.
 --
@@ -127,8 +127,7 @@ execT ::
   StateT s k a
   -> s
   -> k s
-execT =
-  error "todo: Course.StateT#execT"
+execT st s = snd <$> runStateT st s
 
 -- | Run the `State'` seeded with `s` and retrieve the resulting state.
 --
@@ -138,8 +137,7 @@ exec' ::
   State' s a
   -> s
   -> s
-exec' =
-  error "todo: Course.StateT#exec'"
+exec' st s = runExactlyOne $ execT st s
 
 -- | Run the `StateT` seeded with `s` and retrieve the resulting value.
 --
@@ -150,8 +148,7 @@ evalT ::
   StateT s k a
   -> s
   -> k a
-evalT =
-  error "todo: Course.StateT#evalT"
+evalT st s = fst <$> runStateT st s
 
 -- | Run the `State'` seeded with `s` and retrieve the resulting value.
 --
@@ -161,8 +158,7 @@ eval' ::
   State' s a
   -> s
   -> a
-eval' =
-  error "todo: Course.StateT#eval'"
+eval' st s = runExactlyOne $ evalT st s
 
 -- | A `StateT` where the state also distributes into the produced value.
 --
@@ -171,8 +167,7 @@ eval' =
 getT ::
   Applicative k =>
   StateT s k s
-getT =
-  error "todo: Course.StateT#getT"
+getT = StateT $ \s -> pure (s, s)
 
 -- | A `StateT` where the resulting state is seeded with the given value.
 --
@@ -185,8 +180,7 @@ putT ::
   Applicative k =>
   s
   -> StateT s k ()
-putT =
-  error "todo: Course.StateT#putT"
+putT s = StateT $ \_ -> pure ((), s)
 
 -- | Remove all duplicate elements in a `List`.
 --
@@ -197,8 +191,12 @@ distinct' ::
   Ord a =>
   List a
   -> List a
-distinct' =
-  error "todo: Course.StateT#distinct'"
+distinct' l =
+  let st x = State (\s -> if Data.Set.member x s then (False, s)
+                          else (True, Data.Set.insert x s))
+      r = filtering st l
+  in eval r Data.Set.empty
+
 
 -- | Remove all duplicate elements in a `List`.
 -- However, if you see a value greater than `100` in the list,
@@ -215,8 +213,10 @@ distinctF ::
   (Ord a, Num a) =>
   List a
   -> Optional (List a)
-distinctF =
-  error "todo: Course.StateT#distinctF"
+distinctF l =
+  let stf x = StateT $ \s -> if x > 100 then Empty else Full (Data.Set.member x s, Data.Set.insert x s)
+  in
+    evalT (filtering stf l) Data.Set.empty
 
 -- | An `OptionalT` is a functor of an `Optional` value.
 data OptionalT k a =
