@@ -1,3 +1,4 @@
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE InstanceSigs #-}
@@ -214,7 +215,7 @@ distinctF ::
   List a
   -> Optional (List a)
 distinctF l =
-  let stf x = StateT $ \s -> if x > 100 then Empty else Full (Data.Set.member x s, Data.Set.insert x s)
+  let stf x = StateT $ \s -> if x > 100 then Empty else Full (not $ Data.Set.member x s, Data.Set.insert x s)
   in
     evalT (filtering stf l) Data.Set.empty
 
@@ -234,8 +235,10 @@ instance Functor k => Functor (OptionalT k) where
     (a -> b)
     -> OptionalT k a
     -> OptionalT k b
-  (<$>) =
-    error "todo: Course.StateT (<$>)#instance (OptionalT k)"
+  (<$>) f o1 =
+    let ka = runOptionalT o1
+    in
+    OptionalT $ mapOptional f <$> ka
 
 -- | Implement the `Applicative` instance for `OptionalT k` given a Monad k.
 --
@@ -265,15 +268,18 @@ instance Monad k => Applicative (OptionalT k) where
   pure ::
     a
     -> OptionalT k a
-  pure =
-    error "todo: Course.StateT pure#instance (OptionalT k)"
+  pure a = OptionalT $ pure $ pure a
 
   (<*>) ::
     OptionalT k (a -> b)
     -> OptionalT k a
     -> OptionalT k b
-  (<*>) =
-    error "todo: Course.StateT (<*>)#instance (OptionalT k)"
+  (<*>) otf ot =
+    let f = runOptionalT otf
+        a = runOptionalT ot
+        x = f >>= optional (\f' -> (f' <$>) <$> a) (pure Empty)
+    in
+      OptionalT x
 
 -- | Implement the `Monad` instance for `OptionalT k` given a Monad k.
 --
@@ -284,8 +290,10 @@ instance Monad k => Monad (OptionalT k) where
     (a -> OptionalT k b)
     -> OptionalT k a
     -> OptionalT k b
-  (=<<) =
-    error "todo: Course.StateT (=<<)#instance (OptionalT k)"
+  f =<< (OptionalT x) =
+        OptionalT ((\case
+                     Empty -> pure Empty
+                     Full a -> runOptionalT (f a)) =<< x)
 
 -- | A `Logger` is a pair of a list of log values (`[l]`) and an arbitrary value (`a`).
 data Logger l a =
